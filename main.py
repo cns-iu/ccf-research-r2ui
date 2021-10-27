@@ -85,7 +85,6 @@ def run_registration(data_filepath, results_filepath, pickle_filepath, block_siz
 
 if __name__ == "__main__":
 
-    ##
     block_size = 50
     #reg_design = 2
     data = "tif"
@@ -98,7 +97,6 @@ if __name__ == "__main__":
     
     run_registration(data_filepath, res_filepath, pickle_filepath, block_size)
 
-    ##
     """block_size = 50
     #reg_design = 3
     #data = "stl_all_surface"
