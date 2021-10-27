@@ -40,7 +40,7 @@ from skimage.util import crop, pad
 
 
 def calculate_global_warping(static, mapping):
-    fwd = mapping.get_forward_field()
+    fwd = mapping#.get_forward_field()
     fwd_nii = ants.from_numpy(fwd, has_components=True)
     static_f = static.astype(float)
     static_nii = ants.from_numpy(static_f)

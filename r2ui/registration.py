@@ -42,11 +42,19 @@ import r2ui
 from r2ui.utils import image_read, get_image_crop
 from r2ui.metrics import calculate_global_warping, calculate_metrics
 
+import cupy as cp
+from cudipy.align.imwarp import SymmetricDiffeomorphicRegistration as cp_SymmetricDiffeomorphicRegistration
+from cudipy.align.metrics import CCMetric as cp_CCMetric
+
 
 def register_affine(static, moving, static_affine, moving_affine, f):
-    level_iters = [10000, 1000, 100]
-    sigmas = [3.0, 1.0, 0.0]
-    factors = [4, 2, 1]
+    #level_iters = [10000, 1000, 100]
+    #sigmas = [3.0, 1.0, 0.0]
+    #factors = [4, 2, 1]
+
+    level_iters = [1]
+    sigmas = [0.0]
+    factors = [1]
 
     pipeline = [center_of_mass, translation, rigid, affine]
 
@@ -73,11 +81,33 @@ def register_diffeomorphic(static, moving, static_affine, moving_affine, reg_aff
     
     mapping = sdr.optimize(static, moving, static_affine, moving_affine, reg_affine)
     warped_moving = mapping.transform(moving)
+
+    mapping = mapping.get_forward_field()
+    
+    return mapping, warped_moving
+
+def register_diffeomorphic_gpu(static, moving, static_affine, moving_affine, reg_affine, f):
+    metric_syn = cp_CCMetric(3)
+    level_iters_syn = [10, 10, 5]
+    
+    sdr = cp_SymmetricDiffeomorphicRegistration(metric_syn, level_iters_syn)
+    
+    static = cp.asarray(static)
+    moving = cp.asarray(moving)
+    static_affine = cp.asarray(static_affine)
+    moving_affine = cp.asarray(moving_affine)
+    reg_affine = cp.asarray(reg_affine)
+
+    mapping = sdr.optimize(static, moving, static_affine, moving_affine, reg_affine)
+    warped_moving = mapping.transform(moving)
+
+    mapping = cp.asnumpy(mapping.get_forward_field())
+    warped_moving = cp.asnumpy(warped_moving)
     
     return mapping, warped_moving
 
 def register_image(static, moving, f):
-    
+    print("Register Image")
     static_affine =  np.eye(4)
     moving_affine =  np.eye(4)
 
@@ -86,17 +116,21 @@ def register_image(static, moving, f):
     end_time_1 = time()
     time_affine = end_time_1 - start_time_1
     print(f"Affine Registration time: {time_affine} seconds", file=f)
+    print(f"Affine Registration time: {time_affine} seconds")
 
     start_time_2 = time()
-    mapping, warped_moving = register_diffeomorphic(static, moving, static_affine, moving_affine, reg_affine, f)
+    mapping, warped_moving = register_diffeomorphic_gpu(static, moving, static_affine, moving_affine, reg_affine, f)
     end_time_2 = time()
     time_diffeomorphic = end_time_2 - start_time_2
     print(f"Diffeomorphic Registration time: {time_diffeomorphic} seconds", file=f)
+    print(f"Diffeomorphic Registration time: {time_diffeomorphic} seconds")
     
     print(f" Total Single Registration time: {time_affine + time_diffeomorphic} seconds", file=f)
+    print(f" Total Single Registration time: {time_affine + time_diffeomorphic} seconds")
     return mapping, warped_moving
 
 def sliding_registration(reference_image, moving_image, patch_size, x1_ref, y1_ref, z1_ref, f):
+    print("Start Sliding Registration")
     start_time = time()
     image_dims = [reference_image.shape[0], reference_image.shape[1], reference_image.shape[2]]
     jac_all = []
@@ -125,6 +159,7 @@ def sliding_registration(reference_image, moving_image, patch_size, x1_ref, y1_r
                                                (padding_size, padding_size)),
                                  'constant', constant_values=((0,0),(0,0),(0,0)))
     
+    print("Start Position Search")
     for i in range(x1_ref - delta, x1_ref + delta + 1): 
         for j in range(y1_ref - delta, y1_ref + delta + 1): 
             for k in range(z1_ref - delta, z1_ref + delta + 1):
@@ -136,6 +171,7 @@ def sliding_registration(reference_image, moving_image, patch_size, x1_ref, y1_r
                 jac = calculate_global_warping(fixed, mapping)
                 jac_pos.append((jac, i, j, k))
                 reg_dict_pos[(i,j, k)] = (warped_moving,fixed)
+    print("End Position Search")
                 
     jac_pos.sort(key=lambda x:x[0])
     jac_best = jac_pos[0]
@@ -145,6 +181,7 @@ def sliding_registration(reference_image, moving_image, patch_size, x1_ref, y1_r
     fixed_padded_np = pad(fixed_np, ((padding_size,padding_size),(padding_size,padding_size),(padding_size,padding_size)),
                      'constant', constant_values=((0,0),(0,0),(0,0)))
                 
+    print("Start Orientation Search")
     for theta1 in range(-max_rotation_angle, max_rotation_angle+1): # -degrees to +degrees
         moving_rotated1 = scipy.ndimage.rotate(moving_padded_np,angle=theta1,axes=(0,1), reshape=False)
         for theta2 in range(-max_rotation_angle, max_rotation_angle+1): # -degrees to +degrees
@@ -176,6 +213,8 @@ def sliding_registration(reference_image, moving_image, patch_size, x1_ref, y1_r
                 jac_all.append(metrics)
                 
                 reg_dict[(jac_best[1], jac_best[2], jac_best[3], theta1, theta2, theta3)] = (warped_moving,fixed_image_to_register)
+    print("End Orientation Search")
     end_time = time()
     print(f"Sliding Registration (fastest dense) time: {end_time - start_time} seconds", file=f)
+    print("End Sliding Registration")
     return jac_all, reg_dict

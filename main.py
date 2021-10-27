@@ -42,7 +42,7 @@ import r2ui
 from r2ui.utils import image_read, get_image_crop
 from r2ui.registration import sliding_registration
 
-def run_registration(data_filepath, results_filepath,pickle_filepath, block_size=50):
+def run_registration(data_filepath, results_filepath, pickle_filepath, block_size=50):
     # Open a file to write results
     f = open(results_filepath, "a+")
     print(f"+++++ NEW EXPERIMENT +++++ : Started at: {datetime.now()}", file=f)
@@ -88,13 +88,13 @@ if __name__ == "__main__":
     ##
     block_size = 50
     #reg_design = 2
-    data = "tif_tif"
+    data = "tif"
 
     print(f"Running KPMP {data}_{block_size}")
 
-    data_filepath = f'../Kpmp_nifti/kpmp_data.tif'
-    res_filepath = f"../exp_results/dipy/results_{block_size}_{data}.txt" # blocksize_mode_data.txt
-    pickle_filepath = f'../exp_results/dipy/all_metrics_{block_size}_{data}.pickle'
+    data_filepath = f'../data/kpmp_data.tif'
+    res_filepath = f"../exp_results/dipy_results_{block_size}_{data}_gpu.txt" # blocksize_mode_data.txt
+    pickle_filepath = f'../exp_results/dipy_all_metrics_{block_size}__{data}_gpu.pickle'
     
     run_registration(data_filepath, res_filepath, pickle_filepath, block_size)
 
